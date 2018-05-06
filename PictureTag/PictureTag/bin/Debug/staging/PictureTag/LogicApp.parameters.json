@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "logicAppName": {
+      "value": "PictureTag"
+    },
+    "cognitiveservicescomputervision_1_apiKey": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/f85f553b-24a4-4a10-bd3f-675e49605b9a/resourceGroups/SPCLogicApps/providers/Microsoft.KeyVault/vaults/SPCLogicAppVault"
+        },
+        "secretName": "ComputerVision1Key1"
+      }
+    }
+  }
+}

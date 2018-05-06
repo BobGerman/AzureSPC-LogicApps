@@ -1,0 +1,301 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "logicAppName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "metadata": {
+        "description": "Name of the Logic App."
+      }
+    },
+    "logicAppLocation": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "allowedValues": [
+        "[resourceGroup().location]",
+        "eastasia",
+        "southeastasia",
+        "centralus",
+        "eastus",
+        "eastus2",
+        "westus",
+        "northcentralus",
+        "southcentralus",
+        "northeurope",
+        "westeurope",
+        "japanwest",
+        "japaneast",
+        "brazilsouth",
+        "australiaeast",
+        "australiasoutheast",
+        "southindia",
+        "centralindia",
+        "westindia",
+        "canadacentral",
+        "canadaeast",
+        "uksouth",
+        "ukwest",
+        "westcentralus",
+        "westus2"
+      ],
+      "metadata": {
+        "description": "Location of the Logic App."
+      }
+    },
+    "sharepointonline_1_Connection_Name": {
+      "type": "string",
+      "defaultValue": "sharepointonline"
+    },
+    "sharepointonline_1_Connection_DisplayName": {
+      "type": "string",
+      "defaultValue": "Bob@BGTest18.onmicrosoft.com"
+    },
+    "cognitiveservicescomputervision_1_Connection_Name": {
+      "type": "string",
+      "defaultValue": "cognitiveservicescomputervision"
+    },
+    "cognitiveservicescomputervision_1_Connection_DisplayName": {
+      "type": "string",
+      "defaultValue": "ComputerVision1"
+    },
+    "cognitiveservicescomputervision_1_apiKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Cognitive Services Account Key"
+      }
+    },
+    "cognitiveservicescomputervision_1_siteUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "Root site url (Example: https://westus.api.cognitive.microsoft.com ).If not specified site url will be defaulted to 'https://westus.api.cognitive.microsoft.com'."
+      },
+      "defaultValue": "https://eastus.api.cognitive.microsoft.com/vision/v1.0"
+    }
+  },
+  "variables": {},
+  "resources": [
+    {
+      "name": "[parameters('logicAppName')]",
+      "type": "Microsoft.Logic/workflows",
+      "location": "[parameters('logicAppLocation')]",
+      "tags": {
+        "displayName": "LogicApp"
+      },
+      "apiVersion": "2016-06-01",
+      "properties": {
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "actions": {
+            "Initialize_Description": {
+              "type": "InitializeVariable",
+              "inputs": {
+                "variables": [
+                  {
+                    "name": "Description",
+                    "type": "String"
+                  }
+                ]
+              },
+              "runAfter": {}
+            },
+            "Get_file_content": {
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+                  }
+                },
+                "method": "get",
+                "path": "/datasets/@{encodeURIComponent(encodeURIComponent('https://bgtest18.sharepoint.com/sites/ApiTest'))}/files/@{encodeURIComponent(triggerBody()?['{Identifier}'])}/content",
+                "queries": {
+                  "inferContentType": true
+                }
+              },
+              "runAfter": {
+                "Initialize_variable": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Analyze_Image": {
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['cognitiveservicescomputervision']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "body": "@body('Get_file_content')",
+                "path": "/vision/v1.0/analyze",
+                "queries": {
+                  "format": "Image Content",
+                  "visualFeatures": "Tags,Description,Categories"
+                }
+              },
+              "runAfter": {
+                "Get_file_content": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "For_each": {
+              "type": "Foreach",
+              "foreach": "@body('Analyze_Image')?['description']['captions']",
+              "actions": {
+                "Append_to_string_variable": {
+                  "type": "AppendToStringVariable",
+                  "inputs": {
+                    "name": "Description",
+                    "value": "@items('For_each')['text']"
+                  },
+                  "runAfter": {}
+                }
+              },
+              "runAfter": {
+                "Analyze_Image": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Update_item": {
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+                  }
+                },
+                "method": "patch",
+                "body": {
+                  "Description": "@variables('Description')",
+                  "Keywords": "@variables('Keywords')"
+                },
+                "path": "/datasets/@{encodeURIComponent(encodeURIComponent('https://bgtest18.sharepoint.com/sites/ApiTest'))}/tables/@{encodeURIComponent(encodeURIComponent('Pictures'))}/items/@{encodeURIComponent(triggerBody()?['ID'])}"
+              },
+              "runAfter": {
+                "For_each_2": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "For_each_2": {
+              "type": "Foreach",
+              "foreach": "@body('Analyze_Image')?['categories']",
+              "actions": {
+                "Append_to_string_variable_2": {
+                  "type": "AppendToStringVariable",
+                  "inputs": {
+                    "name": "Keywords",
+                    "value": "@concat(replace(items('For_each_2')?['name'],'_',' '),' ')"
+                  },
+                  "runAfter": {}
+                }
+              },
+              "runAfter": {
+                "For_each": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Initialize_variable": {
+              "type": "InitializeVariable",
+              "inputs": {
+                "variables": [
+                  {
+                    "name": "Keywords",
+                    "type": "String"
+                  }
+                ]
+              },
+              "runAfter": {
+                "Initialize_Description": [
+                  "Succeeded"
+                ]
+              }
+            }
+          },
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            }
+          },
+          "triggers": {
+            "When_an_item_is_created": {
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+                  }
+                },
+                "method": "get",
+                "path": "/datasets/@{encodeURIComponent(encodeURIComponent('https://bgtest18.sharepoint.com/sites/ApiTest'))}/tables/@{encodeURIComponent(encodeURIComponent('Pictures'))}/onnewitems"
+              },
+              "recurrence": {
+                "frequency": "Hour",
+                "interval": 1
+              },
+              "splitOn": "@triggerBody()?['value']"
+            }
+          },
+          "contentVersion": "1.0.0.0",
+          "outputs": {}
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "sharepointonline": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'sharepointonline')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('sharepointonline_1_Connection_Name'))]",
+                "connectionName": "[parameters('sharepointonline_1_Connection_Name')]"
+              },
+              "cognitiveservicescomputervision": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'cognitiveservicescomputervision')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('cognitiveservicescomputervision_1_Connection_Name'))]",
+                "connectionName": "[parameters('cognitiveservicescomputervision_1_Connection_Name')]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/connections', parameters('sharepointonline_1_Connection_Name'))]",
+        "[resourceId('Microsoft.Web/connections', parameters('cognitiveservicescomputervision_1_Connection_Name'))]"
+      ]
+    },
+    {
+      "type": "MICROSOFT.WEB/CONNECTIONS",
+      "apiVersion": "2016-06-01",
+      "name": "[parameters('sharepointonline_1_Connection_Name')]",
+      "location": "[parameters('logicAppLocation')]",
+      "properties": {
+        "api": {
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'sharepointonline')]"
+        },
+        "displayName": "[parameters('sharepointonline_1_Connection_DisplayName')]"
+      }
+    },
+    {
+      "type": "MICROSOFT.WEB/CONNECTIONS",
+      "apiVersion": "2016-06-01",
+      "name": "[parameters('cognitiveservicescomputervision_1_Connection_Name')]",
+      "location": "[parameters('logicAppLocation')]",
+      "properties": {
+        "api": {
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'cognitiveservicescomputervision')]"
+        },
+        "displayName": "[parameters('cognitiveservicescomputervision_1_Connection_DisplayName')]",
+        "parameterValues": {
+          "apiKey": "[parameters('cognitiveservicescomputervision_1_apiKey')]",
+          "siteUrl": "[parameters('cognitiveservicescomputervision_1_siteUrl')]"
+        }
+      }
+    }
+  ],
+  "outputs": {}
+}
