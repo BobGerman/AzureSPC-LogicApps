@@ -51,6 +51,27 @@
     "sharepointonline_1_Connection_DisplayName": {
       "type": "string",
       "defaultValue": "Bob@BGTest18.onmicrosoft.com"
+    },
+    "cognitiveservicestextanalytics_1_Connection_Name": {
+      "type": "string",
+      "defaultValue": "cognitiveservicestextanalytics"
+    },
+    "cognitiveservicestextanalytics_1_Connection_DisplayName": {
+      "type": "string",
+      "defaultValue": "TextAnalytics1"
+    },
+    "cognitiveservicestextanalytics_1_apiKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Cognitive Services Account Key"
+      }
+    },
+    "cognitiveservicestextanalytics_1_siteUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "Root site url (Example: https://westus.api.cognitive.microsoft.com ).If not specified site url will be defaulted to 'https://westus.api.cognitive.microsoft.com'."
+      },
+      "defaultValue": "https://eastus.api.cognitive.microsoft.com/text/analytics/v2.0"
     }
   },
   "variables": {},
@@ -91,11 +112,15 @@
                 },
                 "method": "post",
                 "body": {
-                  "Title": "@triggerBody()?['comment']"
+                  "Title": "@{concat(triggerBody()?['comment'], ' (',variables('Sentiment'),')')}"
                 },
                 "path": "/datasets/@{encodeURIComponent(encodeURIComponent('https://bgtest18.sharepoint.com/sites/ApiTest'))}/tables/@{encodeURIComponent(encodeURIComponent('f5367db6-c77a-4b9f-9ca5-155c972c8961'))}/items"
               },
-              "runAfter": {}
+              "runAfter": {
+                "Determine_sentiment": [
+                  "Succeeded"
+                ]
+              }
             },
             "Response_if_failed": {
               "type": "Response",
@@ -109,6 +134,101 @@
               "runAfter": {
                 "Create_item": [
                   "Failed"
+                ]
+              }
+            },
+            "Initialize_variable": {
+              "type": "InitializeVariable",
+              "inputs": {
+                "variables": [
+                  {
+                    "name": "Sentiment",
+                    "type": "String",
+                    "value": "neutral"
+                  }
+                ]
+              },
+              "runAfter": {}
+            },
+            "Determine_sentiment": {
+              "type": "Scope",
+              "actions": {
+                "Detect_Sentiment": {
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['cognitiveservicestextanalytics']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "body": {
+                      "text": "@triggerBody()?['comment']"
+                    },
+                    "path": "/sentiment"
+                  },
+                  "runAfter": {}
+                },
+                "Check_unhappy": {
+                  "type": "If",
+                  "expression": {
+                    "and": [
+                      {
+                        "less": [
+                          "@float(body('Detect_Sentiment')?['score'])",
+                          0.3
+                        ]
+                      }
+                    ]
+                  },
+                  "actions": {
+                    "set_sentiment_to_uinhappy": {
+                      "type": "SetVariable",
+                      "inputs": {
+                        "name": "Sentiment",
+                        "value": "unhappy"
+                      },
+                      "runAfter": {}
+                    }
+                  },
+                  "runAfter": {
+                    "Detect_Sentiment": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "Check_happy": {
+                  "type": "If",
+                  "expression": {
+                    "and": [
+                      {
+                        "greater": [
+                          "@float(body('Detect_Sentiment')?['score'])",
+                          0.7
+                        ]
+                      }
+                    ]
+                  },
+                  "actions": {
+                    "set_sentiment_to_happy": {
+                      "type": "SetVariable",
+                      "inputs": {
+                        "name": "Sentiment",
+                        "value": "happy"
+                      },
+                      "runAfter": {}
+                    }
+                  },
+                  "runAfter": {
+                    "Check_unhappy": [
+                      "Succeeded"
+                    ]
+                  }
+                }
+              },
+              "runAfter": {
+                "Initialize_variable": [
+                  "Succeeded"
                 ]
               }
             }
@@ -148,13 +268,19 @@
                 "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'sharepointonline')]",
                 "connectionId": "[resourceId('Microsoft.Web/connections', parameters('sharepointonline_1_Connection_Name'))]",
                 "connectionName": "[parameters('sharepointonline_1_Connection_Name')]"
+              },
+              "cognitiveservicestextanalytics": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'cognitiveservicestextanalytics')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('cognitiveservicestextanalytics_1_Connection_Name'))]",
+                "connectionName": "[parameters('cognitiveservicestextanalytics_1_Connection_Name')]"
               }
             }
           }
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Web/connections', parameters('sharepointonline_1_Connection_Name'))]"
+        "[resourceId('Microsoft.Web/connections', parameters('sharepointonline_1_Connection_Name'))]",
+        "[resourceId('Microsoft.Web/connections', parameters('cognitiveservicestextanalytics_1_Connection_Name'))]"
       ]
     },
     {
@@ -167,6 +293,22 @@
           "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'sharepointonline')]"
         },
         "displayName": "[parameters('sharepointonline_1_Connection_DisplayName')]"
+      }
+    },
+    {
+      "type": "MICROSOFT.WEB/CONNECTIONS",
+      "apiVersion": "2016-06-01",
+      "name": "[parameters('cognitiveservicestextanalytics_1_Connection_Name')]",
+      "location": "[parameters('logicAppLocation')]",
+      "properties": {
+        "api": {
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'cognitiveservicestextanalytics')]"
+        },
+        "displayName": "[parameters('cognitiveservicestextanalytics_1_Connection_DisplayName')]",
+        "parameterValues": {
+          "apiKey": "[parameters('cognitiveservicestextanalytics_1_apiKey')]",
+          "siteUrl": "[parameters('cognitiveservicestextanalytics_1_siteUrl')]"
+        }
       }
     }
   ],
