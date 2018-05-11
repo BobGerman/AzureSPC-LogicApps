@@ -44,21 +44,21 @@
         "description": "Location of the Logic App."
       }
     },
-    "sharepointonline_1_Connection_Name": {
+    "onedriveforbusiness_1_Connection_Name": {
       "type": "string",
-      "defaultValue": "sharepointonline"
+      "defaultValue": "onedriveforbusiness"
     },
-    "sharepointonline_1_Connection_DisplayName": {
+    "onedriveforbusiness_1_Connection_DisplayName": {
       "type": "string",
       "defaultValue": "Bob@BGTest18.onmicrosoft.com"
     },
-    "dropbox_1_Connection_Name": {
+    "excelonlinebusiness_1_Connection_Name": {
       "type": "string",
-      "defaultValue": "dropbox"
+      "defaultValue": "excelonlinebusiness"
     },
-    "dropbox_1_Connection_DisplayName": {
+    "excelonlinebusiness_1_Connection_DisplayName": {
       "type": "string",
-      "defaultValue": "bob@bgtest18.onmicrosoft.com"
+      "defaultValue": "Bob@BGTest18.onmicrosoft.com"
     },
     "bingmaps_1_Connection_Name": {
       "type": "string",
@@ -74,27 +74,11 @@
         "description": "API Key"
       }
     },
-    "excelonlinebusiness_1_Connection_Name": {
+    "sharepointonline_1_Connection_Name": {
       "type": "string",
-      "defaultValue": "excelonlinebusiness"
+      "defaultValue": "sharepointonline"
     },
-    "excelonlinebusiness_1_Connection_DisplayName": {
-      "type": "string",
-      "defaultValue": "Bob@BGTest18.onmicrosoft.com"
-    },
-    "onedriveforbusiness_1_Connection_Name": {
-      "type": "string",
-      "defaultValue": "onedriveforbusiness-1"
-    },
-    "onedriveforbusiness_1_Connection_DisplayName": {
-      "type": "string",
-      "defaultValue": "Bob@BGTest18.onmicrosoft.com"
-    },
-    "onedriveforbusiness_2_Connection_Name": {
-      "type": "string",
-      "defaultValue": "onedriveforbusiness"
-    },
-    "onedriveforbusiness_2_Connection_DisplayName": {
+    "sharepointonline_1_Connection_DisplayName": {
       "type": "string",
       "defaultValue": "Bob@BGTest18.onmicrosoft.com"
     }
@@ -113,7 +97,7 @@
         "definition": {
           "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
           "actions": {
-            "List_rows_present_in_a_table": {
+            "Get_new_properties_from_spreadsheet": {
               "type": "ApiConnection",
               "inputs": {
                 "host": {
@@ -122,19 +106,16 @@
                   }
                 },
                 "method": "get",
-                "path": "/drives/@{encodeURIComponent('b!8wVS42Ekg0CLoNpu9Ymngb2mqmTz7J1MmmBPVs_-17Vx44YJ3rsnQ7mVLnmk95wu')}/files/@{encodeURIComponent('01JBSVDY2B2Y6AKHLWKVCZGDFYJ5ON7CJT')}/tables/@{encodeURIComponent('NewPurchases')}/items",
+                "path": "/drives/@{encodeURIComponent('b!58yCK9045kSQ86EXIrB0ZssRViDYZS9CiMY2H0Q4WiZN81Hm_JR_T7P2MXAIkq4x')}/files/@{encodeURIComponent(triggerOutputs()['headers']['x-ms-file-id'])}/tables/@{encodeURIComponent('NewPurchases')}/items",
                 "queries": {
-                  "source": "groups/6c2b096a-9b40-451a-a0f3-1925d9295cd2"
+                  "source": "me"
                 }
               },
-              "runAfter": {},
-              "metadata": {
-                "01JBSVDY2B2Y6AKHLWKVCZGDFYJ5ON7CJT": "/Purchase1.xlsx"
-              }
+              "runAfter": {}
             },
             "For_each": {
               "type": "Foreach",
-              "foreach": "@body('List_rows_present_in_a_table')?['value']",
+              "foreach": "@body('Get_new_properties_from_spreadsheet')?['value']",
               "actions": {
                 "Get_location_by_address": {
                   "type": "ApiConnection",
@@ -173,6 +154,7 @@
                       "WorkCity": "@items('For_each')?['City']",
                       "WorkState": "@items('For_each')?['State']",
                       "WorkZip": "@items('For_each')?['PostalCode']",
+                      "Company": "@items('For_each')?['Unit']",
                       "WorkCountry": "@items('For_each')?['Country']"
                     },
                     "path": "/datasets/@{encodeURIComponent(encodeURIComponent('https://bgtest18.sharepoint.com/sites/ApiTest'))}/tables/@{encodeURIComponent(encodeURIComponent('Intake'))}/items"
@@ -185,7 +167,7 @@
                 }
               },
               "runAfter": {
-                "List_rows_present_in_a_table": [
+                "Get_new_properties_from_spreadsheet": [
                   "Succeeded"
                 ]
               }
@@ -203,7 +185,7 @@
               "inputs": {
                 "host": {
                   "connection": {
-                    "name": "@parameters('$connections')['onedriveforbusiness_1']['connectionId']"
+                    "name": "@parameters('$connections')['onedriveforbusiness']['connectionId']"
                   }
                 },
                 "method": "get",
@@ -214,8 +196,8 @@
                 }
               },
               "recurrence": {
-                "frequency": "Minute",
-                "interval": 3
+                "frequency": "Hour",
+                "interval": 1
               },
               "metadata": {
                 "01P6MCY2W4EA6W5MF5JNAYGO2MHLEPJDGL": "/REPurchases"
@@ -233,6 +215,11 @@
                 "connectionId": "[resourceId('Microsoft.Web/connections', parameters('excelonlinebusiness_1_Connection_Name'))]",
                 "connectionName": "[parameters('excelonlinebusiness_1_Connection_Name')]"
               },
+              "onedriveforbusiness": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'onedriveforbusiness')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('onedriveforbusiness_1_Connection_Name'))]",
+                "connectionName": "[parameters('onedriveforbusiness_1_Connection_Name')]"
+              },
               "bingmaps": {
                 "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'bingmaps')]",
                 "connectionId": "[resourceId('Microsoft.Web/connections', parameters('bingmaps_1_Connection_Name'))]",
@@ -242,11 +229,6 @@
                 "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'sharepointonline')]",
                 "connectionId": "[resourceId('Microsoft.Web/connections', parameters('sharepointonline_1_Connection_Name'))]",
                 "connectionName": "[parameters('sharepointonline_1_Connection_Name')]"
-              },
-              "onedriveforbusiness_1": {
-                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'onedriveforbusiness')]",
-                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('onedriveforbusiness_2_Connection_Name'))]",
-                "connectionName": "[parameters('onedriveforbusiness_2_Connection_Name')]"
               }
             }
           }
@@ -254,33 +236,33 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.Web/connections', parameters('excelonlinebusiness_1_Connection_Name'))]",
+        "[resourceId('Microsoft.Web/connections', parameters('onedriveforbusiness_1_Connection_Name'))]",
         "[resourceId('Microsoft.Web/connections', parameters('bingmaps_1_Connection_Name'))]",
-        "[resourceId('Microsoft.Web/connections', parameters('sharepointonline_1_Connection_Name'))]",
-        "[resourceId('Microsoft.Web/connections', parameters('onedriveforbusiness_2_Connection_Name'))]"
+        "[resourceId('Microsoft.Web/connections', parameters('sharepointonline_1_Connection_Name'))]"
       ]
     },
     {
       "type": "MICROSOFT.WEB/CONNECTIONS",
       "apiVersion": "2016-06-01",
-      "name": "[parameters('sharepointonline_1_Connection_Name')]",
+      "name": "[parameters('onedriveforbusiness_1_Connection_Name')]",
       "location": "[parameters('logicAppLocation')]",
       "properties": {
         "api": {
-          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'sharepointonline')]"
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'onedriveforbusiness')]"
         },
-        "displayName": "[parameters('sharepointonline_1_Connection_DisplayName')]"
+        "displayName": "[parameters('onedriveforbusiness_1_Connection_DisplayName')]"
       }
     },
     {
       "type": "MICROSOFT.WEB/CONNECTIONS",
       "apiVersion": "2016-06-01",
-      "name": "[parameters('dropbox_1_Connection_Name')]",
+      "name": "[parameters('excelonlinebusiness_1_Connection_Name')]",
       "location": "[parameters('logicAppLocation')]",
       "properties": {
         "api": {
-          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'dropbox')]"
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'excelonlinebusiness')]"
         },
-        "displayName": "[parameters('dropbox_1_Connection_DisplayName')]"
+        "displayName": "[parameters('excelonlinebusiness_1_Connection_DisplayName')]"
       }
     },
     {
@@ -301,37 +283,13 @@
     {
       "type": "MICROSOFT.WEB/CONNECTIONS",
       "apiVersion": "2016-06-01",
-      "name": "[parameters('excelonlinebusiness_1_Connection_Name')]",
+      "name": "[parameters('sharepointonline_1_Connection_Name')]",
       "location": "[parameters('logicAppLocation')]",
       "properties": {
         "api": {
-          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'excelonlinebusiness')]"
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'sharepointonline')]"
         },
-        "displayName": "[parameters('excelonlinebusiness_1_Connection_DisplayName')]"
-      }
-    },
-    {
-      "type": "MICROSOFT.WEB/CONNECTIONS",
-      "apiVersion": "2016-06-01",
-      "name": "[parameters('onedriveforbusiness_1_Connection_Name')]",
-      "location": "[parameters('logicAppLocation')]",
-      "properties": {
-        "api": {
-          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'onedriveforbusiness')]"
-        },
-        "displayName": "[parameters('onedriveforbusiness_1_Connection_DisplayName')]"
-      }
-    },
-    {
-      "type": "MICROSOFT.WEB/CONNECTIONS",
-      "apiVersion": "2016-06-01",
-      "name": "[parameters('onedriveforbusiness_2_Connection_Name')]",
-      "location": "[parameters('logicAppLocation')]",
-      "properties": {
-        "api": {
-          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'onedriveforbusiness')]"
-        },
-        "displayName": "[parameters('onedriveforbusiness_2_Connection_DisplayName')]"
+        "displayName": "[parameters('sharepointonline_1_Connection_DisplayName')]"
       }
     }
   ],

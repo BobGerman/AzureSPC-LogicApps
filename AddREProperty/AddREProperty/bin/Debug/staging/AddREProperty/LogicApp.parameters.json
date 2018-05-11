@@ -3,7 +3,7 @@
   "contentVersion": "1.0.0.0",
   "parameters": {
     "logicAppName": {
-      "value": "ProcessNewRE"
+      "value": "AddREProperties"
     },
     "bingmaps_1_api_key": {
       "reference": {
