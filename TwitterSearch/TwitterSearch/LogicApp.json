@@ -1,0 +1,156 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "logicAppName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "metadata": {
+        "description": "Name of the Logic App."
+      }
+    },
+    "logicAppLocation": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "allowedValues": [
+        "[resourceGroup().location]",
+        "eastasia",
+        "southeastasia",
+        "centralus",
+        "eastus",
+        "eastus2",
+        "westus",
+        "northcentralus",
+        "southcentralus",
+        "northeurope",
+        "westeurope",
+        "japanwest",
+        "japaneast",
+        "brazilsouth",
+        "australiaeast",
+        "australiasoutheast",
+        "southindia",
+        "centralindia",
+        "westindia",
+        "canadacentral",
+        "canadaeast",
+        "uksouth",
+        "ukwest",
+        "westcentralus",
+        "westus2"
+      ],
+      "metadata": {
+        "description": "Location of the Logic App."
+      }
+    },
+    "twitter_1_Connection_Name": {
+      "type": "string",
+      "defaultValue": "twitter"
+    },
+    "twitter_1_Connection_DisplayName": {
+      "type": "string",
+      "defaultValue": "Test18Bg"
+    }
+  },
+  "variables": {},
+  "resources": [
+    {
+      "name": "[parameters('logicAppName')]",
+      "type": "Microsoft.Logic/workflows",
+      "location": "[parameters('logicAppLocation')]",
+      "tags": {
+        "displayName": "LogicApp"
+      },
+      "apiVersion": "2016-06-01",
+      "properties": {
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "actions": {
+            "Search_tweets": {
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['twitter']['connectionId']"
+                  }
+                },
+                "method": "get",
+                "path": "/searchtweets",
+                "queries": {
+                  "searchQuery": "@triggerBody()?['hashtag']",
+                  "maxResults": 20
+                }
+              },
+              "runAfter": {}
+            },
+            "Response": {
+              "type": "Response",
+              "kind": "http",
+              "inputs": {
+                "statusCode": 200,
+                "body": "@body('Search_tweets')"
+              },
+              "runAfter": {
+                "Search_tweets": [
+                  "Succeeded"
+                ]
+              }
+            }
+          },
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            }
+          },
+          "triggers": {
+            "manual": {
+              "type": "Request",
+              "kind": "Http",
+              "inputs": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "hashtag": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "contentVersion": "1.0.0.0",
+          "outputs": {}
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "twitter": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'twitter')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('twitter_1_Connection_Name'))]",
+                "connectionName": "[parameters('twitter_1_Connection_Name')]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/connections', parameters('twitter_1_Connection_Name'))]"
+      ]
+    },
+    {
+      "type": "MICROSOFT.WEB/CONNECTIONS",
+      "apiVersion": "2016-06-01",
+      "name": "[parameters('twitter_1_Connection_Name')]",
+      "location": "[parameters('logicAppLocation')]",
+      "properties": {
+        "api": {
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'twitter')]"
+        },
+        "displayName": "[parameters('twitter_1_Connection_DisplayName')]"
+      }
+    }
+  ],
+  "outputs": {}
+}
